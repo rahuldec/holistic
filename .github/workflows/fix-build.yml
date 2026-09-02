@@ -1,0 +1,48 @@
+name: Fix TypeScript Build
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fix build issues
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('src/App.tsx')
+          s = p.read_text()
+
+          old_call = "<Preview student={student} setStudent={setStudent} scheme={scheme} published={published} setPublished={setPublished} pct={pct} grade={grade}/>"
+          new_call = "<Preview student={student} setStudent={setStudent} scheme={scheme} published={published} setPublished={setPublished} pct={pct} grade={grade} total={total} max={max}/>"
+          s = s.replace(old_call, new_call)
+
+          old_sig = "function Preview({student,setStudent,scheme,published,setPublished,pct,grade}:{student:string;setStudent:(x:string)=>void;scheme:Assessment;published:boolean;setPublished:(x:boolean)=>void;pct:string;grade:string})"
+          new_sig = "function Preview({student,setStudent,scheme,published,setPublished,pct,grade,total,max}:{student:string;setStudent:(x:string)=>void;scheme:Assessment;published:boolean;setPublished:(x:boolean)=>void;pct:string;grade:string;total:number;max:number})"
+          s = s.replace(old_sig, new_sig)
+
+          p.write_text(s)
+
+          Path('src/vite-env.d.ts').write_text("/// <reference types=\"vite/client\" />\n")
+
+      - name: Commit fixes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx src/vite-env.d.ts
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+          else
+            git commit -m "fix: resolve Vercel TypeScript build errors"
+            git push
+          fi
